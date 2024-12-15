@@ -1,4 +1,4 @@
-CKPT_DIR="/path/BERT4Rec"
+CKPT_DIR="./BERT4Rec"
 dataset_name="fashion"
 max_seq_length=50
 max_predictions_per_seq=30
