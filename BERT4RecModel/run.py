@@ -327,6 +327,18 @@ class EvalHooks(tfv1.train.SessionRunHook):
                 if rank < 10:
                     self.ndcg_10 += 1 / np.log2(rank + 2)
                     self.hit_10 += 1
+                if rank < 20:
+                    self.ndcg_20 += 1 / np.log2(rank + 2)
+                    self.hit_20 += 1
+                if rank < 30:
+                    self.ndcg_30 += 1 / np.log2(rank + 2)
+                    self.hit_30 += 1
+                if rank < 40:
+                    self.ndcg_40 += 1 / np.log2(rank + 2)
+                    self.hit_40 += 1
+                if rank < 50:
+                    self.ndcg_50 += 1 / np.log2(rank + 2)
+                    self.hit_50 += 1
 
                 self.ap += 1.0 / (rank + 1)
 
