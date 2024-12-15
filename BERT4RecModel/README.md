@@ -5,22 +5,23 @@
 
 **Requirements**
 
-* python 2.7+
-* Tensorflow 1.12 (GPU version)
-* CUDA compatible with TF 1.12
+* python 3.10+
+* Tensorflow 2.15 (GPU version)
+* CUDA compatible with TF 2.15
 
 **Run**
 
-For simplicity, here we take amazon beauty as an example:
+For simplicity, here we take amazon fashion as an example:
 
 ``` bash
-./run_beauty.sh
+./run_fashion.sh
 ```
 include two part command:
 generated masked training data
 ``` bash
 python -u gen_data_fin.py \
     --dataset_name=${dataset_name} \
+    --mode=user-based \
     --max_seq_length=${max_seq_length} \
     --max_predictions_per_seq=${max_predictions_per_seq} \
     --mask_prob=${mask_prob} \
@@ -48,11 +49,12 @@ CUDA_VISIBLE_DEVICES=0 python -u run.py \
     --max_predictions_per_seq=${max_predictions_per_seq} \
     --num_train_steps=${num_train_steps} \
     --num_warmup_steps=100 \
-    --learning_rate=1e-4
+    --learning_rate=1e-4 \
+    --mode=user-based
 ```
 
 ### hyper-parameter settings
-json in `bert_train` like `bert_config_beauty_64.json`
+json in `bert_train` like `bert_config_fashion_64.json`
 
 ```json
 {
@@ -66,6 +68,6 @@ json in `bert_train` like `bert_config_beauty_64.json`
   "num_attention_heads": 2,
   "num_hidden_layers": 2,
   "type_vocab_size": 2,
-  "vocab_size": 3420
+  "vocab_size": 126684
 }
 ```

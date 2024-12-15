@@ -21,8 +21,6 @@ import time
 random_seed = 12345
 short_seq_prob = 0  # Probability of creating sequences which are shorter than the maximum length。
 
-#flags = tf.flags
-#FLAGS = flags.FLAGS
 flags = tf.compat.v1.flags
 FLAGS = flags.FLAGS
 
@@ -59,8 +57,12 @@ flags.DEFINE_string(
     "data dir.")
 
 flags.DEFINE_string(
-    "dataset_name", 'ml-1m',
+    "dataset_name", "fashion",
     "dataset name.")
+
+flags.DEFINE_string(
+    "mode", "item-based",
+    "mode name for user-based or item-based BERT model.")
 
 
 def printable_text(text):
@@ -297,11 +299,11 @@ def create_training_instances(all_documents_raw,
 def create_instances_threading(all_documents, user, max_seq_length, short_seq_prob,
                                masked_lm_prob, max_predictions_per_seq, vocab, rng,
                                mask_prob, step):
-    cnt = 0;
+    cnt = 0
     start_time = time.clock()
     instances = []
     for user in all_documents:
-        cnt += 1;
+        cnt += 1
         if cnt % 1000 == 0:
             print("step: {}, name: {}, step: {}, time: {}".format(step, multiprocessing.current_process().name, cnt, time.clock()-start_time))
             start_time = time.clock()
@@ -393,7 +395,6 @@ def create_instances_from_document_train(
 
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance",
                                           ["index", "label"])
-
 
 def create_masked_lm_predictions_force_last(tokens):
     """Creates the predictions for the masked LM objective."""
@@ -507,7 +508,7 @@ def main():
     dupe_factor = FLAGS.dupe_factor
     prop_sliding_window = FLAGS.prop_sliding_window
     pool_size = FLAGS.pool_size
-
+    mode = FLAGS.mode
     output_dir = FLAGS.data_dir
     dataset_name = FLAGS.dataset_name
     version_id = FLAGS.signature
@@ -517,106 +518,207 @@ def main():
         print(output_dir + ' is not exist')
         print(os.getcwd())
         exit(1)
-    #dataset_filename = output_dir + dataset_name + '.txt'
-    dataset_filename = output_dir + dataset_name
-    dataset = data_partition(dataset_filename)
-    [user_train, user_valid, user_test, usernum, itemnum] = dataset
+
+    dataset_filename = output_dir + dataset_name + '.txt'    
     cc = 0.0
     max_len = 0
     min_len = 100000
-    for u in user_train:
-        cc += len(user_train[u])
-        max_len = max(len(user_train[u]), max_len)
-        min_len = min(len(user_train[u]), min_len)
 
-    print('average sequence length: %.2f' % (cc / len(user_train)))
-    print('max:{}, min:{}'.format(max_len, min_len))
+    if mode == "item-based":
+        dataset = data_partition(dataset_filename, mode)
+        [user_train, user_valid, user_test, usernum, itemnum] = dataset
+        for u in user_train:
+            cc += len(user_train[u])
+            max_len = max(len(user_train[u]), max_len)
+            min_len = min(len(user_train[u]), min_len)
 
-    print('len_train:{}, len_valid:{}, len_test:{}, usernum:{}, itemnum:{}'.
-        format(
-        len(user_train),
-        len(user_valid), len(user_test), usernum, itemnum))
+        print('average sequence length: %.2f' % (cc / len(user_train)))
+        print('max:{}, min:{}'.format(max_len, min_len))
 
-    for idx, u in enumerate(user_train):
-        if idx < 10:
-            print(user_train[u])
-            print(user_valid[u])
-            print(user_test[u])
+        print('len_train:{}, len_valid:{}, len_test:{}, usernum:{}, itemnum:{}'.
+            format(
+            len(user_train),
+            len(user_valid), len(user_test), usernum, itemnum))
 
-    # put validate into train
-    for u in user_train:
-        if u in user_valid:
-            user_train[u].extend(user_valid[u])
+        for idx, u in enumerate(user_train):
+            if idx < 10:
+                print(user_train[u])
+                print(user_valid[u])
+                print(user_test[u])
 
-    # get the max index of the data
-    user_train_data = {
-        'user_' + str(k): ['item_' + str(item) for item in v]
-        for k, v in user_train.items() if len(v) > 0
-    }
-    user_test_data = {
-        'user_' + str(u):
-            ['item_' + str(item) for item in (user_train[u] + user_test[u])]
-        for u in user_train if len(user_train[u]) > 0 and len(user_test[u]) > 0
-    }
-    rng = random.Random(random_seed)
+        # put validate into train
+        for u in user_train:
+            if u in user_valid:
+                user_train[u].extend(user_valid[u])
 
-    vocab = FreqVocab(user_test_data)
-    user_test_data_output = {
-        k: [vocab.convert_tokens_to_ids(v)]
-        for k, v in user_test_data.items()
-    }
+        # get the max index of the data
+        user_train_data = {
+            'user_' + str(k): ['item_' + str(item) for item in v]
+            for k, v in user_train.items() if len(v) > 0
+        }
+        user_test_data = {
+            'user_' + str(u):
+                ['item_' + str(item) for item in (user_train[u] + user_test[u])]
+            for u in user_train if len(user_train[u]) > 0
+        }
+        rng = random.Random(random_seed)
 
-    print('begin to generate train')
-    output_filename = output_dir + dataset_name + version_id + '.train.tfrecord'
-    gen_samples(
-        user_train_data,
-        output_filename,
-        rng,
-        vocab,
-        max_seq_length,
-        dupe_factor,
-        short_seq_prob,
-        mask_prob,
-        masked_lm_prob,
-        max_predictions_per_seq,
-        prop_sliding_window,
-        pool_size,
-        force_last=False)
-    print('train:{}'.format(output_filename))
+        vocab = FreqVocab(user_test_data)
 
-    print('begin to generate test')
-    output_filename = output_dir + dataset_name + version_id + '.test.tfrecord'
-    gen_samples(
-        user_test_data,
-        output_filename,
-        rng,
-        vocab,
-        max_seq_length,
-        dupe_factor,
-        short_seq_prob,
-        mask_prob,
-        masked_lm_prob,
-        max_predictions_per_seq,
-        -1.0,
-        pool_size,
-        force_last=True)
-    print('test:{}'.format(output_filename))
+        user_test_data_output = {
+            k: [vocab.convert_tokens_to_ids(v)]
+            for k, v in user_test_data.items()
+        }
 
-    print('vocab_size:{}, user_size:{}, item_size:{}, item_with_other_size:{}'.
-          format(vocab.get_vocab_size(),
-                 vocab.get_user_count(),
-                 vocab.get_item_count(),
-                 vocab.get_item_count() + vocab.get_special_token_count()))
-    vocab_file_name = output_dir + dataset_name + version_id + '.vocab'
-    print('vocab pickle file: ' + vocab_file_name)
-    with open(vocab_file_name, 'wb') as output_file:
-        pickle.dump(vocab, output_file, protocol=2)
+        print('begin to generate train')
+        output_filename = output_dir + dataset_name + version_id + '.train.tfrecord'
+        gen_samples(
+            user_train_data,
+            output_filename,
+            rng,
+            vocab,
+            max_seq_length,
+            dupe_factor,
+            short_seq_prob,
+            mask_prob,
+            masked_lm_prob,
+            max_predictions_per_seq,
+            prop_sliding_window,
+            pool_size,
+            force_last=False)
+        print('train:{}'.format(output_filename))
 
-    his_file_name = output_dir + dataset_name + version_id + '.his'
-    print('test data pickle file: ' + his_file_name)
-    with open(his_file_name, 'wb') as output_file:
-        pickle.dump(user_test_data_output, output_file, protocol=2)
-    print('done.')
+        print('begin to generate test')
+        output_filename = output_dir + dataset_name + version_id + '.test.tfrecord'
+        gen_samples(
+            user_test_data,
+            output_filename,
+            rng,
+            vocab,
+            max_seq_length,
+            dupe_factor,
+            short_seq_prob,
+            mask_prob,
+            masked_lm_prob,
+            max_predictions_per_seq,
+            -1.0,
+            pool_size,
+            force_last=True)
+        print('test:{}'.format(output_filename))
+
+        print('vocab_size:{}, user_size:{}, item_size:{}, item_with_other_size:{}'.
+              format(vocab.get_vocab_size(),
+                     vocab.get_user_count(),
+                     vocab.get_item_count(),
+                     vocab.get_item_count() + vocab.get_special_token_count()))
+        vocab_file_name = output_dir + dataset_name + version_id + '.vocab'
+        print('vocab pickle file: ' + vocab_file_name)
+        with open(vocab_file_name, 'wb') as output_file:
+            pickle.dump(vocab, output_file, protocol=2)
+
+        his_file_name = output_dir + dataset_name + version_id + '.his'
+        print('test data pickle file: ' + his_file_name)
+        with open(his_file_name, 'wb') as output_file:
+            pickle.dump(user_test_data_output, output_file, protocol=2)
+        print('Generating fine tuned data done.')
+
+    if mode == "user-based":
+        dataset = data_partition(dataset_filename, mode)
+        [item_train, item_valid, item_test, usernum, itemnum] = dataset
+        for i in item_train:
+            cc += len(item_train[i])
+            max_len = max(len(item_train[i]), max_len)
+            min_len = min(len(item_train[i]), min_len)
+
+        print('average sequence length: %.2f' % (cc / len(item_train)))
+        print('max:{}, min:{}'.format(max_len, min_len))
+
+        print('len_train:{}, len_valid:{}, len_test:{}, usernum:{}, itemnum:{}'.
+            format(
+            len(item_train),
+            len(item_valid), len(item_test), usernum, itemnum))
+
+        for idx, i in enumerate(item_train):
+            if idx < 10:
+                print(item_train[i])
+                print(item_valid[i])
+                print(item_test[i])
+
+        # put validate into train
+        for i in item_train:
+            if i in item_valid:
+                item_train[i].extend(item_valid[i])
+
+        # get the max index of the data
+        item_train_data = {
+            'item_' + str(k): ['user_' + str(user) for user in v]
+            for k, v in item_train.items() if len(v) > 0
+        }
+        item_test_data = {
+            'item_' + str(i):
+                ['user_' + str(user) for user in (item_train[i] + item_test[i])]
+            for i in item_train if len(item_train[i]) > 0
+        }
+        rng = random.Random(random_seed)
+
+        vocab = FreqVocab(item_test_data)
+
+        item_test_data_output = {
+            k: [vocab.convert_tokens_to_ids(v)]
+            for k, v in item_test_data.items()
+        }
+
+        print('begin to generate train')
+        output_filename = output_dir + dataset_name + version_id + '.train.tfrecord'
+        gen_samples(
+            item_train_data,
+            output_filename,
+            rng,
+            vocab,
+            max_seq_length,
+            dupe_factor,
+            short_seq_prob,
+            mask_prob,
+            masked_lm_prob,
+            max_predictions_per_seq,
+            prop_sliding_window,
+            pool_size,
+            force_last=False)
+        print('train:{}'.format(output_filename))
+
+        print('begin to generate test')
+        output_filename = output_dir + dataset_name + version_id + '.test.tfrecord'
+        gen_samples(
+            item_test_data,
+            output_filename,
+            rng,
+            vocab,
+            max_seq_length,
+            dupe_factor,
+            short_seq_prob,
+            mask_prob,
+            masked_lm_prob,
+            max_predictions_per_seq,
+            -1.0,
+            pool_size,
+            force_last=True)
+        print('test:{}'.format(output_filename))
+
+        print('vocab_size:{}, user_size:{}, item_size:{}, item_with_other_size:{}'.
+              format(vocab.get_vocab_size(),
+                     vocab.get_user_count(),
+                     vocab.get_item_count(),
+                     vocab.get_item_count() + vocab.get_special_token_count()))
+        vocab_file_name = output_dir + dataset_name + version_id + '.vocab'
+        print('vocab pickle file: ' + vocab_file_name)
+        with open(vocab_file_name, 'wb') as output_file:
+            pickle.dump(vocab, output_file, protocol=2)
+
+        his_file_name = output_dir + dataset_name + version_id + '.his'
+        print('test data pickle file: ' + his_file_name)
+        with open(his_file_name, 'wb') as output_file:
+            pickle.dump(item_test_data_output, output_file, protocol=2)
+        print('Generating fine tuned data done.')
 
 
 if __name__ == "__main__":
