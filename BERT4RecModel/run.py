@@ -199,7 +199,7 @@ class EvalHooks(tfv1.train.SessionRunHook):
             output_true_file = os.path.join(FLAGS.checkpointDir,
                                             "true_results.txt")
             with open(output_true_file, 'w') as f:
-                for key in self.true_item.keys():
+                for key in sorted(self.true_item.keys()):
                     f.write("%s = %s\n" % (key, str(self.true_item[key])))
                 f.close()
 
@@ -212,7 +212,7 @@ class EvalHooks(tfv1.train.SessionRunHook):
             output_predict_file = os.path.join(FLAGS.checkpointDir,
                                                "predictions_results.txt")
             with open(output_predict_file, 'w') as f:
-                for key in self.predictions.keys():
+                for key in sorted(self.predictions.keys()):
                     f.write("%s = %s\n" % (key, str(self.predictions[key])))
                 f.close()
 
@@ -226,7 +226,7 @@ class EvalHooks(tfv1.train.SessionRunHook):
             output_true_file = os.path.join(FLAGS.checkpointDir,
                                             "true_results.txt")
             with open(output_true_file, 'w') as f:
-                for key in self.true_item.keys():
+                for key in sorted(self.true_item.keys()):
                     f.write("%s = %s\n" % (key, str(self.true_item[key])))
                 f.close()
 
@@ -239,7 +239,7 @@ class EvalHooks(tfv1.train.SessionRunHook):
             output_predict_file = os.path.join(FLAGS.checkpointDir,
                                                "predictions_results.txt")
             with open(output_predict_file, 'w') as f:
-                for key in self.predictions.keys():
+                for key in sorted(self.predictions.keys()):
                     f.write("%s = %s\n" % (key, str(self.predictions[key])))
                 f.close()
 
