@@ -150,9 +150,11 @@ class EvalHooks(tfv1.train.SessionRunHook):
 
         self.true_item = {}
         self.predictions = {}
+        self.predictions_prob = {}
         self.user = []
         self.mask_item = []
         self.mask_item_predict = []
+        self.item_predict_prob = []
 
         np.random.seed(12345)
 
@@ -190,12 +192,7 @@ class EvalHooks(tfv1.train.SessionRunHook):
                     self.ap / self.valid_user, self.valid_user))
 
         print("mode:", FLAGS.mode)
-        if FLAGS.mode  == "item-based":
-            # for u in self.true_item.keys():
-            #     for i in self.true_item[u]:
-            #         j = i.strip('item_')
-            #         self.true_item[u].append(movies[int(j)])
-            #         break
+        if FLAGS.mode == "item-based":
             output_true_file = os.path.join(FLAGS.checkpointDir,
                                             "true_results.txt")
             with open(output_true_file, 'w') as f:
@@ -203,26 +200,24 @@ class EvalHooks(tfv1.train.SessionRunHook):
                     f.write("%s = %s\n" % (key, str(self.true_item[key])))
                 f.close()
 
-            # for u in self.predictions.keys():
-            #     for i in self.predictions[u]:
-            #         j = i.strip('item_')
-            #         self.predictions[u].append(movies[int(j)])
-            #         break
-
             output_predict_file = os.path.join(FLAGS.checkpointDir,
                                                "predictions_results.txt")
             with open(output_predict_file, 'w') as f:
                 for key in sorted(self.predictions.keys()):
                     f.write("%s = %s\n" % (key, str(self.predictions[key])))
+                f.close()
+
+            output_item_ncf_file = os.path.join(FLAGS.checkpointDir,
+                                               "item_ncf_data.txt")
+            with open(output_item_ncf_file, 'w') as f:
+                for key in sorted(self.predictions.keys()):
+                    for item in self.predictions[key]:
+                        pred_id = item.strip('item_')
+                        pred_prob =  self.predictions_prob[key]
+                        f.write("%s::%s::%s\n" % (key, pred_id, pred_prob))
                 f.close()
 
         if FLAGS.mode == "user-based":
-            # for u in self.true_item.keys():
-            #     for i in self.true_item[u]:
-            #         j = i.strip('item_')
-            #         self.true_item[u].append(movies[int(j)])
-            #         break
-
             output_true_file = os.path.join(FLAGS.checkpointDir,
                                             "true_results.txt")
             with open(output_true_file, 'w') as f:
@@ -230,17 +225,21 @@ class EvalHooks(tfv1.train.SessionRunHook):
                     f.write("%s = %s\n" % (key, str(self.true_item[key])))
                 f.close()
 
-            # for u in self.predictions.keys():
-            #     for i in self.predictions[u]:
-            #         j = i.strip('item_')
-            #         self.predictions[u].append(movies[int(j)])
-            #         break
-
             output_predict_file = os.path.join(FLAGS.checkpointDir,
                                                "predictions_results.txt")
             with open(output_predict_file, 'w') as f:
                 for key in sorted(self.predictions.keys()):
                     f.write("%s = %s\n" % (key, str(self.predictions[key])))
+                f.close()
+            
+            output_user_ncf_file = os.path.join(FLAGS.checkpointDir,
+                                               "user_ncf_data.txt")
+            with open(output_user_ncf_file, 'w') as f:
+                for key in sorted(self.predictions.keys()):
+                    for user in self.predictions[key]:
+                        pred_id = user.strip('user_')
+                        pred_prob =  self.predictions_prob[key]
+                        f.write("%s::%s::%s\n" % (key, pred_id, pred_prob))
                 f.close()
 
     def before_run(self, run_context):
@@ -268,9 +267,11 @@ class EvalHooks(tfv1.train.SessionRunHook):
                 if m == 0:
                     self.mask_item.append(self.vocab.convert_ids_to_tokens([mask[m]]))
 
-        for pred in masked_lm_predictions:
+        for pred_count in range(masked_lm_predictions.shape[0]):
+            pred = masked_lm_predictions[pred_count]
             for index in range(len(pred)):
                 if index == 0:
+                    self.item_predict_prob.append(masked_lm_log_probs[pred_count, 0, pred[index]])
                     self.mask_item_predict.append(self.vocab.convert_ids_to_tokens([pred[index]]))
 
         for i in range(len(self.user)):
@@ -278,16 +279,17 @@ class EvalHooks(tfv1.train.SessionRunHook):
 
         for i in range(len(self.user)):
             self.predictions[self.user[i]] = self.mask_item_predict[i]
+            self.predictions_prob[self.user[i]] = self.item_predict_prob[i]
 
         if FLAGS.layer_metrics:
             for idx in range(len(input_ids)):
                 rated = set(input_ids[idx])
                 rated.add(0)
                 rated.add(masked_lm_ids[idx][0])
-                if FLAGS.mode  == "item-based":
+                if FLAGS.mode == "item-based":
                     map(lambda x: rated.add(x),
                         self.user_history["user_" + str(info[idx][0])][0])
-                elif FLAGS.mode  == "user-based":
+                elif FLAGS.mode == "user-based":
                     map(lambda x: rated.add(x),
                         self.user_history["item_" + str(info[idx][0])][0])
                 item_idx = [masked_lm_ids[idx][0]]
