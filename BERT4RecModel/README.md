@@ -11,12 +11,12 @@
 
 **Run**
 
-For simplicity, here we take amazon fashion as an example:
+For simplicity, here we take Amazon fashion as an example:
 
 ``` bash
 ./run_fashion.sh
 ```
-include two part command:
+Include two-part command:
 generated masked training data
 ``` bash
 python -u gen_data_fin.py \
@@ -30,6 +30,7 @@ python -u gen_data_fin.py \
     --prop_sliding_window=${prop_sliding_window} \
     --signature=${signature} \
     --pool_size=${pool_size} \
+    --mode=user-based
 ```
 
 train the model
