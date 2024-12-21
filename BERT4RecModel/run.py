@@ -192,6 +192,8 @@ class EvalHooks(tfv1.train.SessionRunHook):
                     self.ap / self.valid_user, self.valid_user))
 
         print("mode:", FLAGS.mode)
+        print("predictions", self.predictions)
+        print("predictions_prob", self.predictions_prob)
         if FLAGS.mode == "item-based":
             output_true_file = os.path.join(FLAGS.checkpointDir,
                                             "true_results.txt")
@@ -211,9 +213,9 @@ class EvalHooks(tfv1.train.SessionRunHook):
                                                "item_ncf_data.txt")
             with open(output_item_ncf_file, 'w') as f:
                 for key in sorted(self.predictions.keys()):
-                    for item in self.predictions[key]:
+                    for index, item in enumerate(self.predictions[key]):
                         pred_id = item.strip('item_')
-                        pred_prob =  self.predictions_prob[key]
+                        pred_prob =  self.predictions_prob[key][index]
                         f.write("%s::%s::%s\n" % (key, pred_id, pred_prob))
                 f.close()
 
@@ -236,9 +238,9 @@ class EvalHooks(tfv1.train.SessionRunHook):
                                                "user_ncf_data.txt")
             with open(output_user_ncf_file, 'w') as f:
                 for key in sorted(self.predictions.keys()):
-                    for user in self.predictions[key]:
+                    for index, user in enumerate(self.predictions[key]):
                         pred_id = user.strip('user_')
-                        pred_prob =  self.predictions_prob[key]
+                        pred_prob =  self.predictions_prob[key][index]
                         f.write("%s::%s::%s\n" % (key, pred_id, pred_prob))
                 f.close()
 
@@ -267,12 +269,17 @@ class EvalHooks(tfv1.train.SessionRunHook):
                 if m == 0:
                     self.mask_item.append(self.vocab.convert_ids_to_tokens([mask[m]]))
 
-        for pred_count in range(masked_lm_predictions.shape[0]):
-            pred = masked_lm_predictions[pred_count]
-            for index in range(len(pred)):
-                if index == 0:
-                    self.item_predict_prob.append(masked_lm_log_probs[pred_count, 0, pred[index]])
-                    self.mask_item_predict.append(self.vocab.convert_ids_to_tokens([pred[index]]))
+        for user_count, predictions in enumerate(masked_lm_predictions):
+            #Take top 5 predictions for NCF Layer
+            predictions = predictions[:5]
+            self.mask_item_predict.append(self.vocab.convert_ids_to_tokens(predictions))
+            predictions_probs = []
+            for index in range(len(predictions)):
+                #if index == 0:
+                    #self.item_predict_prob.append(masked_lm_log_probs[user_count, index, predictions[index]])
+                    #self.mask_item_predict.append(self.vocab.convert_ids_to_tokens([predictions[index]]))
+                predictions_probs.append(masked_lm_log_probs[user_count, index, predictions[index]])
+            self.item_predict_prob.append(predictions_probs)
 
         for i in range(len(self.user)):
             self.true_item[self.user[i]] = self.mask_item[i]
