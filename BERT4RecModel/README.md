@@ -11,7 +11,7 @@
 
 **Run**
 
-For simplicity, here we take amazon fashion as an example:
+Here we take amazon fashion as an example:
 
 ``` bash
 ./run_fashion.sh
@@ -50,7 +50,8 @@ CUDA_VISIBLE_DEVICES=0 python -u run.py \
     --num_train_steps=${num_train_steps} \
     --num_warmup_steps=100 \
     --learning_rate=1e-4 \
-    --mode=user-based
+    --mode=user-based \
+    --layer_metrics=True
 ```
 
 ### hyper-parameter settings
